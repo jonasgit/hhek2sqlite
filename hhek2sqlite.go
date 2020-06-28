@@ -1,5 +1,8 @@
 //-*- coding: utf-8 -*-
 
+// About: A basic converter from MS Access/Jet database created by
+// Hogia Hemekonomi (mid 1990's) to SQLite database.
+
 // System Requirements: Windows 10 (any)
 
 // Prepare: install gnu emacs: emacs-26.3-x64_64 (optional)
@@ -25,6 +28,7 @@ import (
 	"os"
 	"strings"
 	"strconv"
+	"golang.org/x/text/encoding/charmap"
 	"context"
 	"database/sql"
 	_ "github.com/alexbrainman/odbc"
@@ -32,11 +36,8 @@ import (
 	//  _ "github.com/bvinc/go-sqlite-lite/sqlite3"
 )
 
-func toUtf8(iso8859_1_buf []byte) string {
-	buf := make([]rune, len(iso8859_1_buf))
-	for i, b := range iso8859_1_buf {
-		buf[i] = rune(b)
-	}
+func toUtf8(in_buf []byte) string {
+	buf, _ := charmap.Windows1252.NewDecoder().Bytes(in_buf)
 	// Escape chars for SQL
 	stringVal := string(buf)
 	stringVal2 := strings.ReplaceAll(stringVal, "'", "''");
