@@ -72,7 +72,7 @@ func copyPersoner(db *sql.DB, outdb *sql.DB) {
 		os.Exit(2)
 	}
 
-	var namn string   // size 50
+	var namn []byte   // size 50
 	var birth string  // size 4 (år, 0 för Gemensamt)
 	var sex string    // size 10 (text: Gemensamt, Man, Kvinna)
 	var nummer int    // autoinc Primary Key, index
@@ -88,7 +88,7 @@ func copyPersoner(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="Personer(Löpnr, Namn, Född, Kön) "
 		sqlStmt+="values("
 		sqlStmt+="\"" + strconv.Itoa(nummer) + "\", "
-		sqlStmt+="\"" + namn + "\", "
+		sqlStmt+="\"" + toUtf8(namn) + "\", "
 		sqlStmt+="\"" + birth + "\", "
 		sqlStmt+="\"" + sex + "\")"
 
@@ -109,7 +109,7 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 
 	// Skapa tabellen
 	sqlStmt := `
-  create table Transaktioner (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillKonto TEXT,Typ TEXT,Datum TEXT,Vad TEXT,Vem TEXT,Belopp DECIMAL(14,5),Saldo DECIMAL(14,5),Fastöverföring BOOLEAN,Text TEXT);
+  create table Transaktioner (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillKonto TEXT,Typ TEXT,Datum TEXT,Vad TEXT,Vem TEXT,Belopp DECIMAL(19,4),Saldo DECIMAL(19,4),Fastöverföring BOOLEAN,Text TEXT);
   delete from Transaktioner;
   `
 	_, err := outdb.Exec(sqlStmt)
@@ -283,7 +283,7 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 
 	// Skapa tabellen
 	sqlStmt := `
-  create table Betalningar (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillPlats TEXT,Typ TEXT,Datum TEXT,Vad TEXT,Vem TEXT,Belopp DECIMAL(14,5),Text TEXT,Ranta DECIMAL(14,5),FastAmort DECIMAL(14,5),RorligAmort DECIMAL(14,5),OvrUtg DECIMAL(14,5),LanLopnr INTEGER,Grey TEXT);
+  create table Betalningar (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillPlats TEXT,Typ TEXT,Datum TEXT,Vad TEXT,Vem TEXT,Belopp DECIMAL(19,4),Text TEXT,Ranta DECIMAL(19,4),FastAmort DECIMAL(19,4),RorligAmort DECIMAL(19,4),OvrUtg DECIMAL(19,4),LanLopnr INTEGER,Grey TEXT);
   delete from Betalningar;
   `
 	_, err := outdb.Exec(sqlStmt)
@@ -368,7 +368,7 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 
 	// Skapa tabellen
 	sqlStmt := `
-  create table Överföringar (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillKonto TEXT,Belopp DECIMAL(14,5),Datum TEXT,HurOfta TEXT,Vad TEXT,Vem TEXT,Kontrollnr INTEGER,TillDatum TEXT,Rakning TEXT);
+  create table Överföringar (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillKonto TEXT,Belopp DECIMAL(19,4),Datum TEXT,HurOfta TEXT,Vad TEXT,Vem TEXT,Kontrollnr INTEGER,TillDatum TEXT,Rakning TEXT);
   delete from Överföringar;
   `
 	_, err := outdb.Exec(sqlStmt)
@@ -446,7 +446,7 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 
 	// Skapa tabellen
 	sqlStmt := `
-  create table Konton (Löpnr integer not null primary key AUTOINCREMENT, KontoNummer TEXT,Benämning TEXT,Saldo DECIMAL(14,5),StartSaldo DECIMAL(14,5),StartManad TEXT,SaldoArsskifte DECIMAL(14,5),ArsskifteManad text);
+  create table Konton (Löpnr integer not null primary key AUTOINCREMENT, KontoNummer TEXT,Benämning TEXT,Saldo DECIMAL(19,4),StartSaldo DECIMAL(19,4),StartManad TEXT,SaldoArsskifte DECIMAL(19,4),ArsskifteManad text);
   delete from Konton;
   `
 	_, err := outdb.Exec(sqlStmt)
@@ -516,7 +516,7 @@ func copyLoan(db *sql.DB, outdb *sql.DB) {
 
 	// Skapa tabellen
 	sqlStmt := `
-  create table LÅN (Löpnr integer not null primary key AUTOINCREMENT,Langivare TEXT,EgenBeskrivn TEXT,LanNummer TEXT,TotLanebelopp DECIMAL(14,5),StartDatum TEXT,RegDatum TEXT,RantJustDatum TEXT,SlutBetDatum TEXT,AktLaneskuld DECIMAL(14,5),RorligDel DECIMAL(14,5),FastDel DECIMAL(14,5),FastRanta REAL,RorligRanta REAL,HurOfta TEXT,Ranta DECIMAL(14,5),FastAmort DECIMAL(14,5),RorligAmort DECIMAL(14,5),OvrUtg DECIMAL(14,5),Rakning TEXT,Vem TEXT,FrånKonto TEXT,Grey TEXT,Anteckningar TEXT,BudgetRanta TEXT,BudgetAmort TEXT,BudgetOvriga TEXT);
+  create table LÅN (Löpnr integer not null primary key AUTOINCREMENT,Langivare TEXT,EgenBeskrivn TEXT,LanNummer TEXT,TotLanebelopp DECIMAL(19,4),StartDatum TEXT,RegDatum TEXT,RantJustDatum TEXT,SlutBetDatum TEXT,AktLaneskuld DECIMAL(19,4),RorligDel DECIMAL(19,4),FastDel DECIMAL(19,4),FastRanta REAL,RorligRanta REAL,HurOfta TEXT,Ranta DECIMAL(19,4),FastAmort DECIMAL(19,4),RorligAmort DECIMAL(19,4),OvrUtg DECIMAL(19,4),Rakning TEXT,Vem TEXT,FrånKonto TEXT,Grey TEXT,Anteckningar TEXT,BudgetRanta TEXT,BudgetAmort TEXT,BudgetOvriga TEXT);
   delete from LÅN;
   `
 	_, err := outdb.Exec(sqlStmt)
@@ -691,7 +691,7 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 
 	// Skapa tabellen
 	sqlStmt := `
-  create table Budget (Löpnr integer not null primary key AUTOINCREMENT,Typ TEXT,Inkomst TEXT,HurOfta INTEGER,StartMånad TEXT,Jan DECIMAL(14,5),Feb DECIMAL(14,5),Mar DECIMAL(14,5),Apr DECIMAL(14,5),Maj DECIMAL(14,5),Jun DECIMAL(14,5),Jul DECIMAL(14,5),Aug DECIMAL(14,5),Sep DECIMAL(14,5),Okt DECIMAL(14,5),Nov DECIMAL(14,5),Dec DECIMAL(14,5),Kontrollnr INTEGER);
+  create table Budget (Löpnr integer not null primary key AUTOINCREMENT,Typ TEXT,Inkomst TEXT,HurOfta INTEGER,StartMånad TEXT,Jan DECIMAL(19,4),Feb DECIMAL(19,4),Mar DECIMAL(19,4),Apr DECIMAL(19,4),Maj DECIMAL(19,4),Jun DECIMAL(19,4),Jul DECIMAL(19,4),Aug DECIMAL(19,4),Sep DECIMAL(19,4),Okt DECIMAL(19,4),Nov DECIMAL(19,4),Dec DECIMAL(19,4),Kontrollnr INTEGER);
   delete from Budget;
   `
 	_, err := outdb.Exec(sqlStmt)
