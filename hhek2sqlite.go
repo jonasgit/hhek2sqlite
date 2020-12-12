@@ -26,6 +26,8 @@ import (
 	"flag"
 	"log"
 	"os"
+	"io"
+	"net/http"
 	"strings"
 	"strconv"
 	"golang.org/x/text/encoding/charmap"
@@ -36,8 +38,16 @@ import (
 	//  _ "github.com/bvinc/go-sqlite-lite/sqlite3"
 )
 
+var revopt bool
+
 func toUtf8(in_buf []byte) string {
-	buf, _ := charmap.Windows1252.NewDecoder().Bytes(in_buf)
+	var buf []byte
+	
+	if revopt {
+		buf = in_buf
+	} else {
+		buf, _ = charmap.Windows1252.NewDecoder().Bytes(in_buf)
+	}
 	// Escape chars for SQL
 	stringVal := string(buf)
 	stringVal2 := strings.ReplaceAll(stringVal, "'", "''");
@@ -48,14 +58,22 @@ func toUtf8(in_buf []byte) string {
 func copyPersoner(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Personer\".")
 
-	// Skapa tabellen
-	
 	// column fodd is Född (år 4 siffor, 0 för Gemensamt)
 	// column kon is Kön (text: Gemensamt, Man, Kvinna)
-	sqlStmt := `
+
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Personer;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Personer (Löpnr integer not null primary key AUTOINCREMENT, Namn text, Född INTEGER, Kön text);
   delete from Personer;
   `
+	}
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -87,10 +105,12 @@ func copyPersoner(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="Personer(Löpnr, Namn, Född, Kön) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + strconv.Itoa(nummer) + "\", "
-		sqlStmt+="\"" + toUtf8(namn) + "\", "
-		sqlStmt+="\"" + birth + "\", "
-		sqlStmt+="\"" + sex + "\")"
+		sqlStmt+="'" + strconv.Itoa(nummer) + "', "
+		sqlStmt+="'" + toUtf8(namn) + "', "
+		sqlStmt+="'" + birth + "', "
+		sqlStmt+="'" + sex + "')"
+
+		fmt.Println("EXEC: ", sqlStmt)
 
 		_, err := outdb.Exec(sqlStmt)
 		if err != nil {
@@ -107,11 +127,20 @@ var (
 func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Transaktioner\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Transaktioner;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Transaktioner (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillKonto TEXT,Typ TEXT,Datum TEXT,Vad TEXT,Vem TEXT,Belopp DECIMAL(19,4),Saldo DECIMAL(19,4),Fastöverföring BOOLEAN,Text TEXT);
   delete from Transaktioner;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -144,7 +173,8 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -153,20 +183,22 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 		fmt.Println("Kopierar rad", rownum, "av", count, ".")
 		err = res.Scan(&fromAcc, &toAcc, &tType, &date, &what, &who, &amount, &nummer, &saldo, &fixed, &comment)
 
-		sqlStmt:="insert into "
-		sqlStmt+="Transaktioner(Löpnr,FrånKonto,TillKonto,Typ,Datum,Vad,Vem,Belopp,Saldo,Fastöverföring,Text) "
-		sqlStmt+="values("
-		sqlStmt+="\"" + strconv.Itoa(nummer) + "\", "
-		sqlStmt+="\"" + toUtf8(fromAcc) + "\", "
-		sqlStmt+="\"" + toUtf8(toAcc) + "\", "
-		sqlStmt+="\"" + toUtf8(tType) + "\", "
-		sqlStmt+="\"" + toUtf8(date) + "\", "
-		sqlStmt+="\"" + toUtf8(what) + "\", "
-		sqlStmt+="\"" + toUtf8(who) + "\", "
-		sqlStmt+="\"" + toUtf8(amount) + "\", "
-		sqlStmt+="\"" + toUtf8(saldo) + "\", "
-		sqlStmt+="\"" + strconv.FormatBool(fixed) + "\", "
-		sqlStmt+="\"" + toUtf8(comment) + "\")"
+		sqlStmt:="INSERT INTO "
+		sqlStmt+="Transaktioner (FrånKonto,TillKonto,Typ,Datum,Vad,Vem,Belopp,Löpnr,Saldo,Fastöverföring,`Text`) "
+		sqlStmt+="VALUES ("
+		sqlStmt+="'" + toUtf8(fromAcc) + "', "
+		sqlStmt+="'" + toUtf8(toAcc) + "', "
+		sqlStmt+="'" + toUtf8(tType) + "', "
+		sqlStmt+="'" + toUtf8(date) + "', "
+		sqlStmt+="'" + toUtf8(what) + "', "
+		sqlStmt+="'" + toUtf8(who) + "', "
+		sqlStmt+="" + toUtf8(amount) + ", "
+		sqlStmt+="" + strconv.Itoa(nummer) + ", "
+		sqlStmt+="" + "null" + ", "
+		sqlStmt+="" + strconv.FormatBool(fixed) + ", "
+		sqlStmt+="'" + toUtf8(comment) + "')"
+
+		fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -182,11 +214,19 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 func copyDtbVer(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"DtbVer\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from DtbVer;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table DtbVer (VerNum text,Benämning text,Losenord text);
   delete from DtbVer;
   `
+	}
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -211,9 +251,11 @@ func copyDtbVer(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="DtbVer(VerNum, Benämning, Losenord) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(VerNum) + "\", "
-		sqlStmt+="\"" + toUtf8(Ben) + "\", "
-		sqlStmt+="\"" + toUtf8(Losenord) + "\")"
+		sqlStmt+="'" + toUtf8(VerNum) + "', "
+		sqlStmt+="'" + toUtf8(Ben) + "', "
+		sqlStmt+="'" + toUtf8(Losenord) + "')"
+
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, err := outdb.Exec(sqlStmt)
 		if err != nil {
@@ -226,11 +268,20 @@ func copyDtbVer(db *sql.DB, outdb *sql.DB) {
 func copyBetalKonton(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"BetalKonton\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from BetalKonton;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table BetalKonton (Löpnr integer not null primary key AUTOINCREMENT, Konto TEXT, Kontonummer TEXT, Kundnummer TEXT , Sigillnummer TEXT);
   delete from BetalKonton;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -264,11 +315,11 @@ func copyBetalKonton(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="BetalKonton(Löpnr, Konto,Kontonummer,Kundnummer,Sigillnummer) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + strconv.Itoa(nummer) + "\", "
-		sqlStmt+="\"" + toUtf8(Konto) + "\", "
-		sqlStmt+="\"" + toUtf8(Kontonummer) + "\", "
-		sqlStmt+="\"" + toUtf8(Kundnummer) + "\", "
-		sqlStmt+="\"" + toUtf8(Sigillnummer) + "\")"
+		sqlStmt+="'" + strconv.Itoa(nummer) + "', "
+		sqlStmt+="'" + toUtf8(Konto) + "', "
+		sqlStmt+="'" + toUtf8(Kontonummer) + "', "
+		sqlStmt+="'" + toUtf8(Kundnummer) + "', "
+		sqlStmt+="'" + toUtf8(Sigillnummer) + "')"
 
 		_, err := outdb.Exec(sqlStmt)
 		if err != nil {
@@ -281,11 +332,20 @@ func copyBetalKonton(db *sql.DB, outdb *sql.DB) {
 func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Betalningar\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Betalningar;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Betalningar (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillPlats TEXT,Typ TEXT,Datum TEXT,Vad TEXT,Vem TEXT,Belopp DECIMAL(19,4),Text TEXT,Ranta DECIMAL(19,4),FastAmort DECIMAL(19,4),RorligAmort DECIMAL(19,4),OvrUtg DECIMAL(19,4),LanLopnr INTEGER,Grey TEXT);
   delete from Betalningar;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -323,7 +383,8 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -336,20 +397,20 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="Betalningar(Löpnr,FrånKonto,TillPlats,Typ,Datum,Vad,Vem,Belopp,Text,Ranta,FastAmort,RorligAmort,OvrUtg,LanLopnr,Grey) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(Löpnr) + "\", "
-		sqlStmt+="\"" + toUtf8(FrånKonto) + "\", "
-		sqlStmt+="\"" + toUtf8(TillPlats) + "\", "
-		sqlStmt+="\"" + toUtf8(Typ) + "\", "
-		sqlStmt+="\"" + toUtf8(Datum) + "\", "
-		sqlStmt+="\"" + toUtf8(Vad) + "\", "
-		sqlStmt+="\"" + toUtf8(Vem) + "\", "
-		sqlStmt+="\"" + toUtf8(Belopp) + "\", "
-		sqlStmt+="\"" + toUtf8(Ranta) + "\", "
-		sqlStmt+="\"" + toUtf8(FastAmort) + "\", "
-		sqlStmt+="\"" + toUtf8(RorligAmort) + "\", "
-		sqlStmt+="\"" + toUtf8(OvrUtg) + "\", "
-		sqlStmt+="\"" + toUtf8(LanLopnr) + "\", "
-		sqlStmt+="\"" + toUtf8(Grey) + "\")"
+		sqlStmt+="'" + toUtf8(Löpnr) + "', "
+		sqlStmt+="'" + toUtf8(FrånKonto) + "', "
+		sqlStmt+="'" + toUtf8(TillPlats) + "', "
+		sqlStmt+="'" + toUtf8(Typ) + "', "
+		sqlStmt+="'" + toUtf8(Datum) + "', "
+		sqlStmt+="'" + toUtf8(Vad) + "', "
+		sqlStmt+="'" + toUtf8(Vem) + "', "
+		sqlStmt+="'" + toUtf8(Belopp) + "', "
+		sqlStmt+="'" + toUtf8(Ranta) + "', "
+		sqlStmt+="'" + toUtf8(FastAmort) + "', "
+		sqlStmt+="'" + toUtf8(RorligAmort) + "', "
+		sqlStmt+="'" + toUtf8(OvrUtg) + "', "
+		sqlStmt+="'" + toUtf8(LanLopnr) + "', "
+		sqlStmt+="'" + toUtf8(Grey) + "')"
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -366,11 +427,20 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 func copyTransfers(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Överföringar\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Överföringar;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Överföringar (Löpnr integer not null primary key AUTOINCREMENT,FrånKonto TEXT,TillKonto TEXT,Belopp DECIMAL(19,4),Datum TEXT,HurOfta TEXT,Vad TEXT,Vem TEXT,Kontrollnr INTEGER,TillDatum TEXT,Rakning TEXT);
   delete from Överföringar;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -404,7 +474,8 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -417,17 +488,17 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="Överföringar(Löpnr,FrånKonto,TillKonto,Belopp,Datum,HurOfta,Vad,Vem,Kontrollnr,TillDatum,Rakning) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(Löpnr) + "\", "
-		sqlStmt+="\"" + toUtf8(FrånKonto) + "\", "
-		sqlStmt+="\"" + toUtf8(TillKonto) + "\", "
-		sqlStmt+="\"" + toUtf8(Belopp) + "\", "
-		sqlStmt+="\"" + toUtf8(Datum) + "\", "
-		sqlStmt+="\"" + toUtf8(HurOfta) + "\", "
-		sqlStmt+="\"" + toUtf8(Vad) + "\", "
-		sqlStmt+="\"" + toUtf8(Vem) + "\", "
-		sqlStmt+="\"" + strconv.Itoa(Kontrollnr) + "\", "
-		sqlStmt+="\"" + toUtf8(TillDatum) + "\", "
-		sqlStmt+="\"" + toUtf8(Rakning) + "\")"
+		sqlStmt+="'" + toUtf8(Löpnr) + "', "
+		sqlStmt+="'" + toUtf8(FrånKonto) + "', "
+		sqlStmt+="'" + toUtf8(TillKonto) + "', "
+		sqlStmt+="'" + toUtf8(Belopp) + "', "
+		sqlStmt+="'" + toUtf8(Datum) + "', "
+		sqlStmt+="'" + toUtf8(HurOfta) + "', "
+		sqlStmt+="'" + toUtf8(Vad) + "', "
+		sqlStmt+="'" + toUtf8(Vem) + "', "
+		sqlStmt+="'" + strconv.Itoa(Kontrollnr) + "', "
+		sqlStmt+="'" + toUtf8(TillDatum) + "', "
+		sqlStmt+="'" + toUtf8(Rakning) + "')"
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -444,11 +515,20 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 func copyKonton(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Konton\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Konton;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Konton (Löpnr integer not null primary key AUTOINCREMENT, KontoNummer TEXT,Benämning TEXT,Saldo DECIMAL(19,4),StartSaldo DECIMAL(19,4),StartManad TEXT,SaldoArsskifte DECIMAL(19,4),ArsskifteManad text);
   delete from Konton;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -479,7 +559,8 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -491,14 +572,16 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="Konton(Löpnr, KontoNummer, Benämning, Saldo, StartSaldo, StartManad, SaldoArsskifte, ArsskifteManad) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(Löpnr) + "\", "
-		sqlStmt+="\"" + toUtf8(KontoNummer) + "\", "
-		sqlStmt+="\"" + toUtf8(Benämning) + "\", "
-		sqlStmt+="\"" + toUtf8(Saldo) + "\", "
-		sqlStmt+="\"" + toUtf8(StartSaldo) + "\", "
-		sqlStmt+="\"" + toUtf8(StartManad) + "\", "
-		sqlStmt+="\"" + toUtf8(SaldoArsskifte) + "\", "
-		sqlStmt+="\"" + toUtf8(ArsskifteManad) + "\")"
+		sqlStmt+="'" + toUtf8(Löpnr) + "', "
+		sqlStmt+="'" + toUtf8(KontoNummer) + "', "
+		sqlStmt+="'" + toUtf8(Benämning) + "', "
+		sqlStmt+="" + toUtf8(Saldo) + ", "
+		sqlStmt+="" + toUtf8(StartSaldo) + ", "
+		sqlStmt+="'" + toUtf8(StartManad) + "', "
+		sqlStmt+="" + toUtf8(SaldoArsskifte) + ", "
+		sqlStmt+="'" + toUtf8(ArsskifteManad) + "')"
+
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -514,11 +597,20 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 func copyLoan(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"LÅN\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from LÅN;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table LÅN (Löpnr integer not null primary key AUTOINCREMENT,Langivare TEXT,EgenBeskrivn TEXT,LanNummer TEXT,TotLanebelopp DECIMAL(19,4),StartDatum TEXT,RegDatum TEXT,RantJustDatum TEXT,SlutBetDatum TEXT,AktLaneskuld DECIMAL(19,4),RorligDel DECIMAL(19,4),FastDel DECIMAL(19,4),FastRanta REAL,RorligRanta REAL,HurOfta TEXT,Ranta DECIMAL(19,4),FastAmort DECIMAL(19,4),RorligAmort DECIMAL(19,4),OvrUtg DECIMAL(19,4),Rakning TEXT,Vem TEXT,FrånKonto TEXT,Grey TEXT,Anteckningar TEXT,BudgetRanta TEXT,BudgetAmort TEXT,BudgetOvriga TEXT);
   delete from LÅN;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -568,7 +660,8 @@ func copyLoan(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -581,33 +674,33 @@ func copyLoan(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="LÅN(Löpnr, KontoNummer, Benämning, Saldo, StartSaldo, StartManad, SaldoArsskifte, ArsskifteManad) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(Löpnr) + "\", "
-		sqlStmt+="\"" + toUtf8(Langivare) + "\", "
-		sqlStmt+="\"" + toUtf8(EgenBeskrivn) + "\", "
-		sqlStmt+="\"" + toUtf8(LanNummer) + "\", "
-		sqlStmt+="\"" + toUtf8(TotLanebelopp) + "\", "
-		sqlStmt+="\"" + toUtf8(StartDatum) + "\", "
-		sqlStmt+="\"" + toUtf8(RegDatum) + "\", "
-		sqlStmt+="\"" + toUtf8(RantJustDatum) + "\", "
-		sqlStmt+="\"" + toUtf8(SlutBetDatum) + "\", "
-		sqlStmt+="\"" + toUtf8(AktLaneskuld) + "\", "
-		sqlStmt+="\"" + toUtf8(RorligDel) + "\", "
-		sqlStmt+="\"" + toUtf8(FastDel) + "\", "
-		sqlStmt+="\"" + fmt.Sprintf("%g", FastRanta) + "\", "
-		sqlStmt+="\"" + fmt.Sprintf("%g", RorligRanta) + "\", "
-		sqlStmt+="\"" + toUtf8(HurOfta) + "\", "
-		sqlStmt+="\"" + toUtf8(Ranta) + "\", "
-		sqlStmt+="\"" + toUtf8(FastAmort) + "\", "
-		sqlStmt+="\"" + toUtf8(RorligAmort) + "\", "
-		sqlStmt+="\"" + toUtf8(OvrUtg) + "\", "
-		sqlStmt+="\"" + toUtf8(Rakning) + "\", "
-		sqlStmt+="\"" + toUtf8(Vem) + "\", "
-		sqlStmt+="\"" + toUtf8(FrånKonto) + "\", "
-		sqlStmt+="\"" + toUtf8(Grey) + "\", "
-		sqlStmt+="\"" + toUtf8(Anteckningar) + "\", "
-		sqlStmt+="\"" + toUtf8(BudgetRanta) + "\", "
-		sqlStmt+="\"" + toUtf8(BudgetAmort) + "\", "
-		sqlStmt+="\"" + toUtf8(BudgetOvriga) + "\")"
+		sqlStmt+="'" + toUtf8(Löpnr) + "', "
+		sqlStmt+="'" + toUtf8(Langivare) + "', "
+		sqlStmt+="'" + toUtf8(EgenBeskrivn) + "', "
+		sqlStmt+="'" + toUtf8(LanNummer) + "', "
+		sqlStmt+="'" + toUtf8(TotLanebelopp) + "', "
+		sqlStmt+="'" + toUtf8(StartDatum) + "', "
+		sqlStmt+="'" + toUtf8(RegDatum) + "', "
+		sqlStmt+="'" + toUtf8(RantJustDatum) + "', "
+		sqlStmt+="'" + toUtf8(SlutBetDatum) + "', "
+		sqlStmt+="'" + toUtf8(AktLaneskuld) + "', "
+		sqlStmt+="'" + toUtf8(RorligDel) + "', "
+		sqlStmt+="'" + toUtf8(FastDel) + "', "
+		sqlStmt+="'" + fmt.Sprintf("%g", FastRanta) + "', "
+		sqlStmt+="'" + fmt.Sprintf("%g", RorligRanta) + "', "
+		sqlStmt+="'" + toUtf8(HurOfta) + "', "
+		sqlStmt+="'" + toUtf8(Ranta) + "', "
+		sqlStmt+="'" + toUtf8(FastAmort) + "', "
+		sqlStmt+="'" + toUtf8(RorligAmort) + "', "
+		sqlStmt+="'" + toUtf8(OvrUtg) + "', "
+		sqlStmt+="'" + toUtf8(Rakning) + "', "
+		sqlStmt+="'" + toUtf8(Vem) + "', "
+		sqlStmt+="'" + toUtf8(FrånKonto) + "', "
+		sqlStmt+="'" + toUtf8(Grey) + "', "
+		sqlStmt+="'" + toUtf8(Anteckningar) + "', "
+		sqlStmt+="'" + toUtf8(BudgetRanta) + "', "
+		sqlStmt+="'" + toUtf8(BudgetAmort) + "', "
+		sqlStmt+="'" + toUtf8(BudgetOvriga) + "')"
 		fmt.Println(sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
@@ -624,12 +717,19 @@ func copyLoan(db *sql.DB, outdb *sql.DB) {
 func copyPlatser(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Platser\".")
 
-	// Skapa tabellen
-	
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Platser;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Platser (Löpnr integer not null primary key AUTOINCREMENT, Namn text, Gironummer text, Typ text, RefKonto);
   delete from Platser;
   `
+	}
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -657,7 +757,8 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -669,11 +770,13 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="Platser(Löpnr, Namn, Gironummer, Typ, RefKonto) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(Löpnr) + "\", "
-		sqlStmt+="\"" + toUtf8(Namn) + "\", "
-		sqlStmt+="\"" + toUtf8(Gironummer) + "\", "
-		sqlStmt+="\"" + toUtf8(Typ) + "\", "
-		sqlStmt+="\"" + toUtf8(RefKonto) + "\")"
+		sqlStmt+="'" + toUtf8(Löpnr) + "', "
+		sqlStmt+="'" + toUtf8(Namn) + "', "
+		sqlStmt+="'" + toUtf8(Gironummer) + "', "
+		sqlStmt+="'" + toUtf8(Typ) + "', "
+		sqlStmt+="'" + toUtf8(RefKonto) + "')"
+
+		fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -689,11 +792,20 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 func copyBudget(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Budget\".")
 
-	// Skapa tabellen
-	sqlStmt := `
+	var sqlStmt string
+	if revopt {
+		// Töm tabellen
+		sqlStmt = `
+  delete from Budget;
+  `
+	} else {
+		// Skapa tabellen
+		sqlStmt = `
   create table Budget (Löpnr integer not null primary key AUTOINCREMENT,Typ TEXT,Inkomst TEXT,HurOfta INTEGER,StartMånad TEXT,Jan DECIMAL(19,4),Feb DECIMAL(19,4),Mar DECIMAL(19,4),Apr DECIMAL(19,4),Maj DECIMAL(19,4),Jun DECIMAL(19,4),Jul DECIMAL(19,4),Aug DECIMAL(19,4),Sep DECIMAL(19,4),Okt DECIMAL(19,4),Nov DECIMAL(19,4),Dec DECIMAL(19,4),Kontrollnr INTEGER);
   delete from Budget;
   `
+	}
+	
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
@@ -734,7 +846,8 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -747,24 +860,26 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 		sqlStmt:="insert into "
 		sqlStmt+="Budget(Löpnr,Typ,Inkomst,HurOfta,StartMånad,Jan,Feb,Mar,Apr,Maj,Jun,Jul,Aug,Sep,Okt,Nov,Dec,Kontrollnr) "
 		sqlStmt+="values("
-		sqlStmt+="\"" + toUtf8(Löpnr) + "\", "
-		sqlStmt+="\"" + toUtf8(Typ) + "\", "
-		sqlStmt+="\"" + toUtf8(Inkomst) + "\", "
-		sqlStmt+="\"" + strconv.Itoa(int(HurOfta)) + "\", "
-		sqlStmt+="\"" + toUtf8(StartMånad) + "\", "
-		sqlStmt+="\"" + toUtf8(Jan) + "\", "
-		sqlStmt+="\"" + toUtf8(Feb) + "\", "
-		sqlStmt+="\"" + toUtf8(Mar) + "\", "
-		sqlStmt+="\"" + toUtf8(Apr) + "\", "
-		sqlStmt+="\"" + toUtf8(Maj) + "\", "
-		sqlStmt+="\"" + toUtf8(Jun) + "\", "
-		sqlStmt+="\"" + toUtf8(Jul) + "\", "
-		sqlStmt+="\"" + toUtf8(Aug) + "\", "
-		sqlStmt+="\"" + toUtf8(Sep) + "\", "
-		sqlStmt+="\"" + toUtf8(Okt) + "\", "
-		sqlStmt+="\"" + toUtf8(Nov) + "\", "
-		sqlStmt+="\"" + toUtf8(Dec) + "\", "
-		sqlStmt+="\"" + strconv.Itoa(int(Kontrollnr)) + "\")"
+		sqlStmt+="'" + toUtf8(Löpnr) + "', "
+		sqlStmt+="'" + toUtf8(Typ) + "', "
+		sqlStmt+="'" + toUtf8(Inkomst) + "', "
+		sqlStmt+="" + strconv.Itoa(int(HurOfta)) + ", "
+		sqlStmt+="'" + toUtf8(StartMånad) + "', "
+		sqlStmt+="" + toUtf8(Jan) + ", "
+		sqlStmt+="" + toUtf8(Feb) + ", "
+		sqlStmt+="" + toUtf8(Mar) + ", "
+		sqlStmt+="" + toUtf8(Apr) + ", "
+		sqlStmt+="" + toUtf8(Maj) + ", "
+		sqlStmt+="" + toUtf8(Jun) + ", "
+		sqlStmt+="" + toUtf8(Jul) + ", "
+		sqlStmt+="" + toUtf8(Aug) + ", "
+		sqlStmt+="" + toUtf8(Sep) + ", "
+		sqlStmt+="" + toUtf8(Okt) + ", "
+		sqlStmt+="" + toUtf8(Nov) + ", "
+		sqlStmt+="" + toUtf8(Dec) + ", "
+		sqlStmt+="" + strconv.Itoa(int(Kontrollnr)) + ")"
+
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -789,14 +904,16 @@ func number_of_rows(db *sql.DB, tablename string) int {
 }
 
 func sqlite_init(filename string) *sql.DB {
-	err := os.Remove(filename)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Println(err)
-			os.Exit(2)
+	if !revopt {
+		err := os.Remove(filename)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				log.Println(err)
+				os.Exit(2)
+			}
 		}
 	}
-
+	
 	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		log.Fatal(err)
@@ -815,12 +932,37 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
+// DownloadFile will download a url to a local file. It's efficient because it will
+// write as it downloads and not load the whole file into memory.
+func DownloadFile(filepath string, url string) error {
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
 func main() {
 	optinPtr := flag.String("optin", "", "Hogia Hemekonomi database filename (*.mdb)")
 	optoutPtr := flag.String("optout", "", "sqlite3 database filename (*.db)")
 	readonlyoptPtr := flag.Bool("readonly", true, "Öppna mdb skrivskyddat.")
+	flag.BoolVar(&revopt, "backa", false, "Konvertera från sqlite till mdb.")
+	
 	flag.Parse()
-
+	
 	if *optinPtr == "" {
 		flag.Usage()
 		os.Exit(1)
@@ -830,44 +972,78 @@ func main() {
 		os.Exit(1)
 	}
 
+	if revopt {
+		fmt.Println("Konverterar från sqlite till MDB")
+	} else {
+		fmt.Println("Konverterar från MDB till sqlite")
+	}
+	
 	filename := *optinPtr;
-	if !fileExists(filename) {
+	if !revopt && !fileExists(filename) {
 		fmt.Println(*optinPtr, " file does not exist (or is a directory)")
 		flag.Usage()
 		os.Exit(1)
 	}
+	if revopt && fileExists(filename) {
+		fmt.Println(*optinPtr, " file exists (or is a directory)")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	// Download base file structure
+	if revopt {
+		fileUrl := "https://github.com/jonasgit/hhek2sqlite/raw/master/TOMDB.MDB"
+		err := DownloadFile(filename, fileUrl)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Downloaded: " + fileUrl + " to " + filename)
+	}
 	
-	// TODO: try other Driver strings?
 	//   powershell show available:  get-odbcdriver -name "*mdb*"
 	// ODBC options see https://docs.microsoft.com/en-us/sql/odbc/microsoft/setting-options-programmatically-for-the-access-driver?view=sql-server-ver15
 	readonlyCommand := ""
-	if *readonlyoptPtr {
+	if (!revopt) && *readonlyoptPtr {
 		readonlyCommand = "READONLY;"
+		fmt.Println("Setting Readonly")
 	}
 
+	var err error
+	var db *sql.DB
+	var outdb *sql.DB
+	
 	databaseAccessCommand := "Driver={Microsoft Access Driver (*.mdb)};"+
 		readonlyCommand +
 		"DBQ="+filename
 	//fmt.Println("Database access command: "+databaseAccessCommand)
-	db, err := sql.Open("odbc",
-		databaseAccessCommand)
+	if revopt {
+		outdb, err = sql.Open("odbc",
+			databaseAccessCommand)
+	} else {
+		db, err = sql.Open("odbc",
+			databaseAccessCommand)
+	}
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
 	}
 
-	outdb := sqlite_init(*optoutPtr)
+	if revopt {
+		db = sqlite_init(*optoutPtr)
+	} else {
+		outdb = sqlite_init(*optoutPtr)
+	}
 
 	copyDtbVer(db, outdb)
 	copyPlatser(db, outdb)
 	copyPersoner(db, outdb)
 	copyKonton(db, outdb)
 	copyBetalKonton(db, outdb)
-	copyTransaktioner(db, outdb)
 	copyTransfers(db, outdb)
 	copyBetalningar(db, outdb)
 	copyLoan(db, outdb)
 	copyBudget(db, outdb)
+	copyTransaktioner(db, outdb)
 	outdb.Close()
 	db.Close()
 }
