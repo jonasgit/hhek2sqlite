@@ -89,6 +89,7 @@ func copyPersoner(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var namn []byte   // size 50
 	var birth string  // size 4 (år, 0 för Gemensamt)
@@ -156,6 +157,7 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var fromAcc []byte  // size 40
 	var toAcc []byte    // size 40
@@ -173,15 +175,16 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 	rownum = 0
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-	tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
-	if err != nil {
-		log.Fatal(err)
-	}
 	for res.Next() {
 		rownum+=1
 		fmt.Println("Kopierar rad", rownum, "av", count, ".")
 		err = res.Scan(&fromAcc, &toAcc, &tType, &date, &what, &who, &amount, &nummer, &saldo, &fixed, &comment)
+
+		//tx, err := outdb.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+		tx, err := outdb.BeginTx(ctx, &sql.TxOptions{})
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		sqlStmt:="INSERT INTO "
 		sqlStmt+="Transaktioner (FrånKonto,TillKonto,Typ,Datum,Vad,Vem,Belopp,Löpnr,Saldo,Fastöverföring,`Text`) "
@@ -205,9 +208,9 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 			_ = tx.Rollback()
 			log.Fatal(execErr)
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		log.Fatal(err)
+		if err := tx.Commit(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
@@ -241,7 +244,8 @@ func copyDtbVer(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
-
+	defer res.Close()
+	
 	var VerNum []byte  // size 4 Primary Key, index
 	var Ben []byte     // size 80
 	var Losenord []byte  // size 8
@@ -298,7 +302,8 @@ func copyBetalKonton(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
-
+	defer res.Close()
+	
 	var Konto []byte         // size 40, index
 	var Kontonummer []byte   // size 40
 	var Kundnummer []byte    // size 40
@@ -362,6 +367,7 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var FrånKonto  []byte  // size 40
 	var TillPlats []byte  // size 40
@@ -457,6 +463,7 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var FrånKonto []byte  // size 40
 	var TillKonto []byte  // size 40
@@ -545,6 +552,7 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var KontoNummer []byte  // size 20
 	var Benämning  []byte  // size 40, index
@@ -627,6 +635,7 @@ func copyLoan(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var Langivare []byte  // size 40
 	var EgenBeskrivn []byte  // size 40
@@ -746,6 +755,7 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var Namn []byte  // size 40
 	var Gironummer []byte  // size 20
@@ -822,6 +832,7 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 		log.Fatal(err)
 		os.Exit(2)
 	}
+	defer res.Close()
 
 	var Typ []byte  // size 40
 	var Inkomst []byte  // size 1
