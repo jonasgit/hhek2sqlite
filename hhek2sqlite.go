@@ -1,6 +1,6 @@
 //-*- coding: utf-8 -*-
 
-// About: A basic converter from MS Access/Jet database created by
+// About: A converter from MS Access/Jet database created by
 // Hogia Hemekonomi (mid 1990's) to SQLite database.
 
 // System Requirements: Windows 10 (any)
@@ -201,7 +201,7 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="" + strconv.FormatBool(fixed) + ", "
 		sqlStmt+="'" + toUtf8(comment) + "')"
 
-		fmt.Println("EXEC: ", sqlStmt)
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -473,7 +473,7 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 	var Vad []byte  // size 40
 	var Vem []byte  // size 40
 	var Löpnr []byte  // Autoinc Primary Key, index
-	var Kontrollnr int  // Integer
+	var Kontrollnr []byte  //int  // Integer
 	var TillDatum []byte  // size 10
 	var Rakning []byte  // size 1
 	var rownum int    // counter for showing stats
@@ -503,7 +503,11 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(HurOfta) + "', "
 		sqlStmt+="'" + toUtf8(Vad) + "', "
 		sqlStmt+="'" + toUtf8(Vem) + "', "
-		sqlStmt+="'" + strconv.Itoa(Kontrollnr) + "', "
+		if len(Kontrollnr) < 1 {
+			sqlStmt+="null, "
+		} else {
+			sqlStmt+="'" + toUtf8(Kontrollnr) + "', "
+		}
 		sqlStmt+="'" + toUtf8(TillDatum) + "', "
 		sqlStmt+="'" + toUtf8(Rakning) + "')"
 
