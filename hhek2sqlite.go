@@ -854,7 +854,7 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 	var Okt []byte  // BCD / Decimal Precision 19
 	var Nov []byte  // BCD / Decimal Precision 19
 	var Dec []byte  // BCD / Decimal Precision 19
-	var Kontrollnr int32 // Integer
+	var Kontrollnr []byte  //int32 // Integer
 	var Löpnr []byte  // autoinc Primary Key, index
 	var rownum int    // counter for showing stats
 
@@ -892,9 +892,13 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="" + toUtf8(Okt) + ", "
 		sqlStmt+="" + toUtf8(Nov) + ", "
 		sqlStmt+="" + toUtf8(Dec) + ", "
-		sqlStmt+="" + strconv.Itoa(int(Kontrollnr)) + ")"
+		if Kontrollnr != nil {
+			sqlStmt+="'" + toUtf8(Kontrollnr) + "')"
+		} else {
+			sqlStmt+="null)"
+		}
 
-		//fmt.Println("EXEC: ", sqlStmt)
+		fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
