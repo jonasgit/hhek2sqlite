@@ -11,10 +11,11 @@
 
 // Prepare: install git: Git-2.23.0-64-bit
 // Prepare: install golang 32-bits (can't access access/jet driver using 64-bits)
-//   go1.13.3.windows-386.msi
+//   go1.16.3.windows-386.msi
 // Prepare: go get github.com/alexbrainman/odbc
 // Prepare: go get github.com/mattn/go-sqlite3
 // Build: go build hhek2sqlite.go
+// Build release: go build -ldflags="-s -w" hhek2sqlite.go
 // Run: ./hhek2sqlite.exe -help
 // Run: ./hhek2sqlite.exe -optin=hemekonomi.mdb -optout ekonomi.db
 // System requirements for hhek2sqlite.exe is Windows XP or later
@@ -22,12 +23,12 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"flag"
 	"log"
 	"os"
-	"io"
-	"net/http"
+	"io/ioutil"
 	"strings"
 	"strconv"
 	"golang.org/x/text/encoding/charmap"
@@ -39,6 +40,9 @@ import (
 )
 
 var revopt bool
+
+//go:embed TOMDB.MDB
+var TOMDB []byte
 
 func toUtf8(in_buf []byte) string {
 	var buf []byte
@@ -951,17 +955,8 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-// DownloadFile will download a url to a local file. It's efficient because it will
-// write as it downloads and not load the whole file into memory.
-func DownloadFile(filepath string, url string) error {
-
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
+// DownloadFile will write a byte-array to a local file.
+func DownloadFile(filepath string) error {
 	// Create the file
 	out, err := os.Create(filepath)
 	if err != nil {
@@ -969,8 +964,8 @@ func DownloadFile(filepath string, url string) error {
 	}
 	defer out.Close()
 
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
+	// Write to file
+	err = ioutil.WriteFile(filepath, TOMDB, 0644)
 	return err
 }
 
@@ -1011,12 +1006,11 @@ func main() {
 
 	// Download base file structure
 	if revopt {
-		fileUrl := "https://github.com/jonasgit/hhek2sqlite/raw/master/TOMDB.MDB"
-		err := DownloadFile(filename, fileUrl)
+		err := DownloadFile(filename)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("Downloaded: " + fileUrl + " to " + filename)
+		fmt.Println("Downloaded to " + filename)
 	}
 	
 	//   powershell show available:  get-odbcdriver -name "*mdb*"
