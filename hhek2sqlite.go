@@ -20,6 +20,11 @@
 // Run: ./hhek2sqlite.exe -optin=hemekonomi.mdb -optout ekonomi.db
 // System requirements for hhek2sqlite.exe is Windows XP or later
 
+// Schema of mdb-file can be found using jet-tool by himselfv
+// https://github.com/himselfv/jet-tool
+// \tmp\Jet.exe schema -f foo.mdb >schema.txt
+// \tmp\Jet.exe dump -f foo.mdb >dump.txt
+
 package main
 
 import (
