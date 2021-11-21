@@ -25,6 +25,10 @@
 // \tmp\Jet.exe schema -f foo.mdb >schema.txt
 // \tmp\Jet.exe dump -f foo.mdb >dump.txt
 
+// Dump existing (empty/new) database to txt and back (tom.mdb -> dumptom.sql -> jette.mdb):
+// \tmp\Jet.exe dump -f tom.mdb --all >dumptom.sql
+// \tmp\Jet.exe exec -f jette.mdb -new --db-format jet20 <dumptom.sql
+
 // Or https://sourceforge.net/projects/jetsqlconsole/
 // More tools may be available via
 // https://en.wikibooks.org/wiki/JET_Database/Manipulation_tools
