@@ -6,5 +6,6 @@ require (
 	github.com/alexbrainman/odbc v0.0.0-20200426075526-f0492dfa1575
 	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.7
+	github.com/shopspring/decimal v1.3.1 // indirect
 	golang.org/x/text v0.3.6
 )

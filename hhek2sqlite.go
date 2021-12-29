@@ -128,7 +128,7 @@ func copyPersoner(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + birth + "', "
 		sqlStmt+="'" + sex + "')"
 
-		fmt.Println("EXEC: ", sqlStmt)
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, err := outdb.Exec(sqlStmt)
 		if err != nil {
@@ -807,7 +807,7 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(Typ) + "', "
 		sqlStmt+="'" + toUtf8(RefKonto) + "')"
 
-		fmt.Println("EXEC: ", sqlStmt)
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -915,7 +915,7 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 			sqlStmt+="null)"
 		}
 
-		fmt.Println("EXEC: ", sqlStmt)
+		//fmt.Println("EXEC: ", sqlStmt)
 
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
@@ -986,7 +986,7 @@ func main() {
 	optinPtr := flag.String("optin", "", "Hogia Hemekonomi database filename (*.mdb)")
 	optoutPtr := flag.String("optout", "", "sqlite3 database filename (*.db)")
 	readonlyoptPtr := flag.Bool("readonly", true, "Öppna mdb skrivskyddat.")
-	flag.BoolVar(&revopt, "backa", false, "Konvertera från sqlite till mdb.")
+	backaPtr := flag.Bool("backa", false, "Konvertera från sqlite till mdb.")
 	
 	flag.Parse()
 	
@@ -998,27 +998,31 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	if revopt {
+	if *backaPtr {
 		fmt.Println("Konverterar från sqlite till MDB")
 	} else {
 		fmt.Println("Konverterar från MDB till sqlite")
 	}
 	
-	filename := *optinPtr;
-	if !revopt && !fileExists(filename) {
-		fmt.Println(*optinPtr, " file does not exist (or is a directory)")
+	konvertera(*optinPtr, *optoutPtr, *readonlyoptPtr, *backaPtr)
+}
+
+func konvertera(mdbfilename string, dbfilename string, readonly bool, backa bool) {
+	revopt = backa
+	filename := mdbfilename;
+	if !backa && !fileExists(filename) {
+		fmt.Println(mdbfilename, " file does not exist (or is a directory)")
 		flag.Usage()
 		os.Exit(1)
 	}
-	if revopt && fileExists(filename) {
-		fmt.Println(*optinPtr, " file exists (or is a directory)")
+	if backa && fileExists(filename) {
+		fmt.Println(mdbfilename, " file exists (or is a directory)")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	// Download base file structure
-	if revopt {
+	if backa {
 		err := DownloadFile(filename)
 		if err != nil {
 			panic(err)
@@ -1029,7 +1033,7 @@ func main() {
 	//   powershell show available:  get-odbcdriver -name "*mdb*"
 	// ODBC options see https://docs.microsoft.com/en-us/sql/odbc/microsoft/setting-options-programmatically-for-the-access-driver?view=sql-server-ver15
 	readonlyCommand := ""
-	if (!revopt) && *readonlyoptPtr {
+	if (!backa) && readonly {
 		readonlyCommand = "READONLY;"
 		fmt.Println("Setting Readonly")
 	}
@@ -1042,7 +1046,7 @@ func main() {
 		readonlyCommand +
 		"DBQ="+filename
 	//fmt.Println("Database access command: "+databaseAccessCommand)
-	if revopt {
+	if backa {
 		outdb, err = sql.Open("odbc",
 			databaseAccessCommand)
 	} else {
@@ -1054,10 +1058,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	if revopt {
-		db = sqlite_init(*optoutPtr)
+	if backa {
+		db = sqlite_init(dbfilename)
 	} else {
-		outdb = sqlite_init(*optoutPtr)
+		outdb = sqlite_init(dbfilename)
 	}
 
 	copyDtbVer(db, outdb)
