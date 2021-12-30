@@ -142,6 +142,10 @@ var (
 	ctx context.Context
 )
 
+func comma2point(value string) string {
+	return strings.ReplaceAll(value, ",", ".");
+}
+
 func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"Transaktioner\".")
 
@@ -212,9 +216,9 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(date) + "', "
 		sqlStmt+="'" + toUtf8(what) + "', "
 		sqlStmt+="'" + toUtf8(who) + "', "
-		sqlStmt+="" + toUtf8(amount) + ", "
+		sqlStmt+="" + comma2point(toUtf8(amount)) + ", "
 		sqlStmt+="" + strconv.Itoa(nummer) + ", "
-		sqlStmt+="" + "null" + ", "
+		sqlStmt+="" + "NULL" + ", "
 		sqlStmt+="" + strconv.FormatBool(fixed) + ", "
 		sqlStmt+="'" + toUtf8(comment) + "')"
 
