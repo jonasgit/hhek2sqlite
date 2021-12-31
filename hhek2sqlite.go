@@ -519,7 +519,7 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(Löpnr) + "', "
 		sqlStmt+="'" + toUtf8(FrånKonto) + "', "
 		sqlStmt+="'" + toUtf8(TillKonto) + "', "
-		sqlStmt+="'" + toUtf8(Belopp) + "', "
+		sqlStmt+="" + comma2point(toUtf8(Belopp)) + ", "
 		sqlStmt+="'" + toUtf8(Datum) + "', "
 		sqlStmt+="'" + toUtf8(HurOfta) + "', "
 		sqlStmt+="'" + toUtf8(Vad) + "', "
@@ -532,10 +532,12 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(TillDatum) + "', "
 		sqlStmt+="'" + toUtf8(Rakning) + "')"
 
+		//fmt.Println("EXEC: ", sqlStmt)
+
 		_, execErr := tx.Exec(sqlStmt)
 		if execErr != nil {
+			log.Printf("%q: %s\n", execErr, sqlStmt)
 			_ = tx.Rollback()
-			log.Fatal(execErr)
 		}
 	}
 	if err := tx.Commit(); err != nil {
