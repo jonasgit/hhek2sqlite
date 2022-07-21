@@ -85,11 +85,11 @@ func Test1(t *testing.T) {
 
 	err := os.Remove(filename+".db")
 	if err != nil {
-		log.Fatal(err)
+		t.Log(err)
 	}
 	err = os.Remove(filename+"b.mdb")
 	if err != nil {
-		log.Fatal(err)
+		t.Log(err)
 	}
 	
 	// Open testdata
