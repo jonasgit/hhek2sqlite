@@ -143,7 +143,11 @@ var (
 )
 
 func comma2point(value string) string {
-	return strings.ReplaceAll(value, ",", ".");
+	if revopt {
+		return "'" + strings.ReplaceAll(value, ".", ",") + "'"
+	} else {
+		return strings.ReplaceAll(value, ",", ".")
+	}
 }
 
 func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
@@ -207,6 +211,10 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 			log.Fatal(err)
 		}
 
+		fmt.Println("Läst OK.")
+		var dbamount = comma2point(toUtf8(amount))
+		fmt.Println("Försöker skriva med summa=", dbamount)
+		
 		sqlStmt:="INSERT INTO "
 		sqlStmt+="Transaktioner (FrånKonto,TillKonto,Typ,Datum,Vad,Vem,Belopp,Löpnr,Saldo,Fastöverföring,`Text`) "
 		sqlStmt+="VALUES ("
@@ -216,7 +224,7 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(date) + "', "
 		sqlStmt+="'" + toUtf8(what) + "', "
 		sqlStmt+="'" + toUtf8(who) + "', "
-		sqlStmt+="" + comma2point(toUtf8(amount)) + ", "
+		sqlStmt+="" + dbamount + ", "
 		sqlStmt+="" + strconv.Itoa(nummer) + ", "
 		sqlStmt+="" + "NULL" + ", "
 		sqlStmt+="" + strconv.FormatBool(fixed) + ", "
@@ -610,10 +618,10 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(Löpnr) + "', "
 		sqlStmt+="'" + toUtf8(KontoNummer) + "', "
 		sqlStmt+="'" + toUtf8(Benämning) + "', "
-		sqlStmt+="" + toUtf8(Saldo) + ", "
-		sqlStmt+="" + toUtf8(StartSaldo) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Saldo)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(StartSaldo)) + ", "
 		sqlStmt+="'" + toUtf8(StartManad) + "', "
-		sqlStmt+="" + toUtf8(SaldoArsskifte) + ", "
+		sqlStmt+="" + comma2point(toUtf8(SaldoArsskifte)) + ", "
 		sqlStmt+="'" + toUtf8(ArsskifteManad) + "')"
 
 		//fmt.Println("EXEC: ", sqlStmt)

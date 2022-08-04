@@ -81,6 +81,7 @@ func openSqlite(filename string) *sql.DB {
 }
 
 func Test1(t *testing.T) {
+	t.Log("Test1 begins")
 	var filename string = "GOTEST1"
 
 	err := os.Remove(filename+".db")
@@ -391,10 +392,12 @@ func checkDB1b(t *testing.T, db *sql.DB, db2 *sql.DB) {
 }
 
 func convert_mdb2sqlite(filenamemdb string, filenamedb string) {
+	log.Println("convert_mdb2sqlite")
 	konvertera(filenamemdb, filenamedb, true, false)
 }
 
 func convert_sqlite2mdb(filenamedb string, filenamemdb string) {
+	log.Println("convert_sqlite2mdb")
 	konvertera(filenamemdb, filenamedb, false, true)
 }
 
