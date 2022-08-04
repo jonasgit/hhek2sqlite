@@ -213,7 +213,6 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 
 		fmt.Println("Läst OK.")
 		var dbamount = comma2point(toUtf8(amount))
-		fmt.Println("Försöker skriva med summa=", dbamount)
 		
 		sqlStmt:="INSERT INTO "
 		sqlStmt+="Transaktioner (FrånKonto,TillKonto,Typ,Datum,Vad,Vem,Belopp,Löpnr,Saldo,Fastöverföring,`Text`) "
@@ -439,10 +438,10 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(Datum) + "', "
 		sqlStmt+="'" + toUtf8(Vad) + "', "
 		sqlStmt+="'" + toUtf8(Vem) + "', "
-		sqlStmt+="'" + toUtf8(Belopp) + "', "
-		sqlStmt+="'" + toUtf8(Ranta) + "', "
-		sqlStmt+="'" + toUtf8(FastAmort) + "', "
-		sqlStmt+="'" + toUtf8(RorligAmort) + "', "
+		sqlStmt+="" + comma2point(toUtf8(Belopp)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Ranta)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(FastAmort)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(RorligAmort)) + ", "
 		sqlStmt+="'" + toUtf8(OvrUtg) + "', "
 		sqlStmt+="'" + toUtf8(LanLopnr) + "', "
 		sqlStmt+="'" + toUtf8(Grey) + "')"
@@ -911,18 +910,18 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 		sqlStmt+="'" + toUtf8(Inkomst) + "', "
 		sqlStmt+="" + strconv.Itoa(int(HurOfta)) + ", "
 		sqlStmt+="'" + toUtf8(StartMånad) + "', "
-		sqlStmt+="" + toUtf8(Jan) + ", "
-		sqlStmt+="" + toUtf8(Feb) + ", "
-		sqlStmt+="" + toUtf8(Mar) + ", "
-		sqlStmt+="" + toUtf8(Apr) + ", "
-		sqlStmt+="" + toUtf8(Maj) + ", "
-		sqlStmt+="" + toUtf8(Jun) + ", "
-		sqlStmt+="" + toUtf8(Jul) + ", "
-		sqlStmt+="" + toUtf8(Aug) + ", "
-		sqlStmt+="" + toUtf8(Sep) + ", "
-		sqlStmt+="" + toUtf8(Okt) + ", "
-		sqlStmt+="" + toUtf8(Nov) + ", "
-		sqlStmt+="" + toUtf8(Dec) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Jan)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Feb)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Mar)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Apr)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Maj)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Jun)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Jul)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Aug)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Sep)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Okt)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Nov)) + ", "
+		sqlStmt+="" + comma2point(toUtf8(Dec)) + ", "
 		if Kontrollnr != nil {
 			sqlStmt+="'" + toUtf8(Kontrollnr) + "')"
 		} else {
