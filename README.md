@@ -7,3 +7,5 @@ Det här programmet fungerar i Windows 10, 11 och Wine (Linux m.m.).  Åtminston
 winetricks mdac28 jet40
 
 Kolla om det finns en färdig under releases/assests
+
+Status: Ganska komplett men se till att ha kopia/backup att återgå till vid eventuella problem.
