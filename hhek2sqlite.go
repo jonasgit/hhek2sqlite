@@ -41,21 +41,21 @@ import (
 	"flag"
 	"log"
 	"os"
-	"io/ioutil"
 	"strings"
 	"strconv"
 	"golang.org/x/text/encoding/charmap"
 	"context"
 	"database/sql"
+
+	ole "github.com/go-ole/go-ole"
+	"github.com/go-ole/go-ole/oleutil"
+	
 	_ "github.com/alexbrainman/odbc"
 	_ "github.com/mattn/go-sqlite3"
 	//  _ "github.com/bvinc/go-sqlite-lite/sqlite3"
 )
 
 var revopt bool
-
-//go:embed TOMDB.MDB
-var TOMDB []byte
 
 func toUtf8(in_buf []byte) string {
 	var buf []byte
@@ -80,6 +80,22 @@ func copyPersoner(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Personer (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY, Namn Text(50), Född Text(4), Kön Text(10));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE UNIQUE INDEX idxNamn ON Personer (Namn);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Personer;
@@ -155,6 +171,22 @@ func copyTransaktioner(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Transaktioner (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY,FrånKonto Text(40),TillKonto Text(40),Typ Text(40),Datum Text(10),Vad Text(40),Vem Text(50),Belopp Currency,Saldo Currency,Fastöverföring Bit,"Text" Text(60));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE INDEX idxFrånKontoTillKonto ON Transaktioner (FrånKonto, TillKonto);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Transaktioner;
@@ -246,22 +278,23 @@ func copyDtbVer(db *sql.DB, outdb *sql.DB) {
 	fmt.Println("Kopierar över \"DtbVer\".")
 
 	var sqlStmt string
-	if revopt {
-		// Töm tabellen
-		sqlStmt = `
-  delete from DtbVer;
+	sqlStmt = `
+  create table DtbVer (VerNum Text(4) CONSTRAINT idxVerNum PRIMARY KEY,Benämning Text(80),Losenord Text(8));
   `
-	} else {
-		// Skapa tabellen
-		sqlStmt = `
-  create table DtbVer (VerNum text,Benämning text,Losenord text);
-  delete from DtbVer;
-  `
-	}
+	//  delete from DtbVer;
 	_, err := outdb.Exec(sqlStmt)
 	if err != nil {
 		log.Printf("%q: %s\n", err, sqlStmt)
-		return
+		os.Exit(1)
+	}
+	// Empty table
+	sqlStmt = `
+  delete from DtbVer;
+  `
+	_, err = outdb.Exec(sqlStmt)
+	if err != nil {
+		log.Printf("%q: %s\n", err, sqlStmt)
+		os.Exit(1)
 	}
 
 	// Läs och kopiera data
@@ -292,7 +325,7 @@ func copyDtbVer(db *sql.DB, outdb *sql.DB) {
 		_, err := outdb.Exec(sqlStmt)
 		if err != nil {
 			log.Printf("%q: %s\n", err, sqlStmt)
-			return
+			os.Exit(1)
 		}
 	}
 }
@@ -302,6 +335,22 @@ func copyBetalKonton(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table BetalKonton (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY, Konto Text(40), Kontonummer Text(40), Kundnummer Text(40) , Sigillnummer Text(40));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE UNIQUE INDEX idxKonto ON BetalKonton (Konto);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from BetalKonton;
@@ -367,6 +416,46 @@ func copyBetalningar(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Betalningar (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY,FrånKonto Text(40),TillPlats Text(40),Typ Text(40),Datum Text(10),Vad Text(40),Vem Text(50),Belopp Currency,'Text' Text(60),Ranta Currency,FastAmort Currency,RorligAmort Currency,OvrUtg Currency,LanLopnr INTEGER,Grey Text(2));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE INDEX idxDatum ON Betalningar (Datum);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE INDEX idxFrånKonto ON Betalningar (FrånKonto);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE INDEX idxLanLopnr ON Betalningar (LanLopnr);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE INDEX idxTillPlats ON Betalningar (TillPlats);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Betalningar;
@@ -463,6 +552,22 @@ func copyTransfers(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Överföringar (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY,FrånKonto Text(40),TillKonto Text(40),Belopp Currency,Datum Text(10),HurOfta Text(15),Vad Text(40),Vem Text(40),Kontrollnr INTEGER,TillDatum Text(10),Rakning Text(1));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE INDEX idxFrånKontoTillKonto ON Överföringar (FrånKonto, TillKonto);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Överföringar;
@@ -558,6 +663,22 @@ func copyKonton(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Konton (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY, KontoNummer Text(20),Benämning Text(40),Saldo Currency,StartSaldo Currency,StartManad Text(10),SaldoArsskifte Currency,ArsskifteManad Text(10));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE UNIQUE INDEX idxBenämning ON Konton (Benämning);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Konton;
@@ -641,6 +762,22 @@ func copyLoan(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table LÅN (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY,Langivare Text(40),EgenBeskrivn Text(40),LanNummer Text(25),TotLanebelopp Currency,StartDatum Text(10),RegDatum Text(10),RantJustDatum Text(10),SlutBetDatum Text(10),AktLaneskuld Currency,RorligDel Currency,FastDel Currency,FastRanta Single,RorligRanta Single,HurOfta Text(2),Ranta Currency,FastAmort Currency,RorligAmort Currency,OvrUtg Currency,Rakning Text(1),Vem Text(40),FrånKonto Text(40),Grey Text(2),Anteckningar Memo,BudgetRanta Text(40),BudgetAmort Text(40),BudgetOvriga Text(40));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE INDEX idxLangiv ON LÅN (Langivare);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from LÅN;
@@ -762,6 +899,22 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Platser (Löpnr AutoIncrement CONSTRAINT idxLöpnr PRIMARY KEY, Namn Text(40), Gironummer Text(20), Typ Text(2), RefKonto Text(40));
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE UNIQUE INDEX idxNamn ON Platser (Namn);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Platser;
@@ -769,7 +922,7 @@ func copyPlatser(db *sql.DB, outdb *sql.DB) {
 	} else {
 		// Skapa tabellen
 		sqlStmt = `
-  create table Platser (Löpnr integer not null primary key AUTOINCREMENT, Namn text, Gironummer text, Typ text, RefKonto);
+  create table Platser (Löpnr integer not null primary key AUTOINCREMENT, Namn text, Gironummer text, Typ text, RefKonto Text);
   delete from Platser;
   `
 	}
@@ -838,6 +991,46 @@ func copyBudget(db *sql.DB, outdb *sql.DB) {
 
 	var sqlStmt string
 	if revopt {
+		sqlStmt = `
+  create table Budget (Löpnr AUTOINCREMENT CONSTRAINT idxLöpnr PRIMARY KEY,Typ Text(40),Inkomst Text(1),HurOfta Byte,StartMånad Text(10),Jan Currency,Feb Currency,Mar Currency,Apr Currency,Maj Currency,Jun Currency,Jul Currency,Aug Currency,Sep Currency,Okt Currency,Nov Currency,Dec Currency,Kontrollnr INTEGER);
+  `
+		_, err := outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			return
+		}
+		sqlStmt = `
+  CREATE UNIQUE INDEX idxTyp ON Budget (Typ);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE INDEX idxInkomst ON Budget (Inkomst);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE INDEX idxInkomstTyp ON Budget (Inkomst,Typ);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
+		sqlStmt = `
+  CREATE INDEX idxKontrollnr ON Budget (Kontrollnr);
+  `
+		_, err = outdb.Exec(sqlStmt)
+		if err != nil {
+			log.Printf("%q: %s\n", err, sqlStmt)
+			os.Exit(1)
+		}
 		// Töm tabellen
 		sqlStmt = `
   delete from Budget;
@@ -981,19 +1174,33 @@ func fileExists(filename string) bool {
 	return !info.IsDir()
 }
 
-// DownloadFile will write a byte-array to a local file.
-func DownloadFile(filepath string) error {
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
+func CreateMDBFile(filepath string) error {
+	fmt.Println("OLE skapar databas: ")
 
-	// Write to file
-	err = ioutil.WriteFile(filepath, TOMDB, 0644)
+	err := ole.CoInitialize(0)
+	if err != nil {
+		fmt.Println("MDB create file: " + err.Error())
+	}
+	defer ole.CoUninitialize()
+	
+	unk, err := oleutil.CreateObject("adox.catalog")
+	if err != nil {
+		fmt.Println("MDB create file: " + err.Error())
+	}
+	cat, err := unk.QueryInterface(ole.IID_IDispatch)
+	if err != nil {
+		fmt.Println("MDB create file: " + err.Error())
+	}
+	_, err = oleutil.CallMethod(cat, "create", fmt.Sprintf("provider=microsoft.jet.oledb.4.0;" +
+		"Jet OLEDB:Engine Type=3;" +
+		"data source=%s;", filepath))
+	if err != nil {
+		fmt.Println("MDB create file: " + err.Error())
+	}
+
 	return err
 }
+
 
 func main() {
 	optinPtr := flag.String("optin", "", "Hogia Hemekonomi database filename (*.mdb)")
@@ -1036,7 +1243,7 @@ func konvertera(mdbfilename string, dbfilename string, readonly bool, backa bool
 
 	// Download base file structure
 	if backa {
-		err := DownloadFile(filename)
+		err := CreateMDBFile(filename)
 		if err != nil {
 			panic(err)
 		}
