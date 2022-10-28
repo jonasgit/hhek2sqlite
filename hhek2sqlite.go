@@ -21,7 +21,7 @@
 // System requirements for hhek2sqlite.exe is Windows XP or later
 
 // Schema of mdb-file can be found using jet-tool by himselfv
-// https://github.com/himselfv/jet-tool
+// https://github.com/himselfv/jet-tool/releases/tag/0.6b
 // \tmp\Jet.exe schema -f foo.mdb >schema.txt
 // \tmp\Jet.exe dump -f foo.mdb >dump.txt
 
